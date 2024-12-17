@@ -238,8 +238,9 @@
 
             let loadedCount = 0;
             const totalModels = modelPaths.length;
+            const modelProgress = new Array(totalModels).fill(0);
 
-            modelPaths.forEach((path) => {
+            modelPaths.forEach((path, index) => {
                 const loader = new THREE.OBJLoader();
 
                 loader.load(
@@ -247,33 +248,41 @@
                     (obj) => {
                         modelCache[path] = obj;
                         loadedCount++;
+                        modelProgress[index] = 100;
 
-                        // 전체 진행률 계산
-                        const totalProgress = (loadedCount / totalModels) * 100;
-                        progressBar.style.width = totalProgress + '%';
-                        progressText.textContent = Math.round(totalProgress) + '%';
+                        updateTotalProgress();
 
-                        // 모든 모델 로딩 완료
                         if (loadedCount === totalModels) {
                             loadingScreen.style.display = 'none';
-                            // 첫 번째 모델 표시
                             loadModel(modelPaths[0]);
                         }
                     },
                     // 프로그레스 콜백
                     (xhr) => {
-                        // 개별 모델 로딩 진행률은 무시
+                        if (xhr.lengthComputable) {
+                            modelProgress[index] = (xhr.loaded / xhr.total) * 100;
+                            updateTotalProgress();
+                        }
                     },
-                    // 에러 콜백
                     (error) => {
                         console.error('모델 로딩 중 에러 발생:', error);
                         loadedCount++;
+                        modelProgress[index] = 100;
+                        updateTotalProgress();
+                        
                         if (loadedCount === totalModels) {
                             loadingScreen.style.display = 'none';
                         }
                     }
                 );
             });
+
+            // 전체 진행률 업데이트 함수
+            function updateTotalProgress() {
+                const totalProgress = modelProgress.reduce((a, b) => a + b, 0) / totalModels;
+                progressBar.style.width = totalProgress + '%';
+                progressText.textContent = Math.round(totalProgress) + '%';
+            }
         }
 
         // loadModel 함수 수정
@@ -290,7 +299,7 @@
                         const uvs = child.geometry.attributes.uv;
                         if (uvs) {
                             for (let i = 0; i < uvs.array.length; i++) {
-                                // UV 좌표��� 0~1 사이로 표준화
+                                // UV 좌표 0~1 사이로 표준화
                                 uvs.array[i] = Math.max(0, Math.min(1, uvs.array[i]));
                             }
                             uvs.needsUpdate = true;
@@ -519,7 +528,7 @@
                 const x = Math.max(0, Math.min(canvas.width, coords.x));
                 const y = Math.max(0, Math.min(canvas.height, coords.y));
 
-                // 마우스 커서 스타일 업데이트
+                // 마우��� 커서 스타일 업데이트
                 const handle = getHandle(e.clientX, e.clientY);
                 if (handle) {
                     switch (handle) {
