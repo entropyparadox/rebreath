@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>3D 모델 뷰어</title>
+    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif;
+        }
+
+        #container {
+            width: 100%;
+            height: 100vh;
+        }
+
+        #controls {
+            position: fixed;
+            bottom: 20px;
+            left: 250px;
+            z-index: 100;
+            display: none;
+        }
+
+        #imageEditor {
+            display: none;
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+            width: 300px;
+        }
+
+        .button {
+            margin: 5px;
+            padding: 8px 15px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        #cropCanvas {
+            width: 100%;
+            height: auto;
+            margin-bottom: 10px;
+            border: 2px solid #ccc;
+        }
+
+        #texturePreviewContainer {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            display: none;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+        }
+
+        #texturePreview {
+            display: block;
+            max-width: 200px;
+            border: 1px solid #ccc;
+        }
+
+        #loadingScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .loading-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #f0f0f0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress {
+            width: 0%;
+            height: 100%;
+            background: #d43434;
+            transition: width 0.3s ease;
+            position: relative;
+        }
+
+        #progressText {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 12px;
+            text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.5);
+            width: 100%;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="controls">
+        <div id="modelButtons">
+            <button class="button" onclick="loadModel('models/p1-bag.obj')">모델 1</button>
+            <button class="button" onclick="loadModel('models/p2-handybag.obj')">모델 2</button>
+            <button class="button" onclick="loadModel('models/p3-pouch-tall.obj')">모델 3</button>
+            <button class="button" onclick="loadModel('models/p4-pouch.obj')">모델 4</button>
+            <button class="button" onclick="loadModel('models/p5-bag-string.obj')">모델 5</button>
+            <button class="button" onclick="loadModel('models/p6-hat.obj')">모델 6</button>
+            <button class="button" onclick="loadModel('models/p7-ecobag.obj')">모델 7</button>
+            <button class="button" onclick="loadModel('models/p8-cap.obj')">모델 8</button>
+        </div>
+        <input type="file" id="textureInput" accept="image/*" style="display: none;">
+        <button class="button" onclick="document.getElementById('textureInput').click()">텍스처 업로드</button>
+    </div>
+
+    <div id="container"></div>
+
+    <div id="texturePreviewContainer"
+        style="position: fixed; bottom: 20px; left: 20px; background: rgba(255,255,255,0.8); padding: 10px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.2);">
+        <p style="margin: 0 0 5px 0;">현재 텍스처:</p>
+        <img id="texturePreview" style="max-width: 200px; border: 1px solid #ccc;">
+    </div>
+
+    <div id="imageEditor">
+        <canvas id="cropCanvas"></canvas>
+    </div>
+
+    <div id="loadingScreen">
+        <div class="loading-container">
+            <div class="progress-bar">
+                <div class="progress" id="progressBar">
+                    <span id="progressText">0%</span>
+                </div>
+            </div>
+            <p>리브레스 3D 뷰어를 불러오고 있습니다</p>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
+
+    <script>
+        let scene, camera, renderer, controls, currentModel;
+        let cropStartX, cropStartY, cropEndX, cropEndY;
+        let isCropping = false;
+
+        // 모델 경로 배열 추가
+        const modelPaths = [
+            'models/p1-bag.obj',
+            'models/p2-handybag.obj',
+            'models/p3-pouch-tall.obj',
+            'models/p4-pouch.obj',
+            'models/p5-bag-string.obj',
+            'models/p6-hat.obj',
+            'models/p7-ecobag.obj',
+            'models/p8-cap.obj'
+        ];
+
+        // 모델 캐시 객체
+        const modelCache = {};
+
+        // 초기 로딩 함수 수정
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setClearColor(0xffffff);
+            document.getElementById('container').appendChild(renderer.domElement);
+
+            // 조명 설정
+            const light = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(light);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            directionalLight.position.set(0, 1, 0);
+            scene.add(directionalLight);
+
+            // 카메라 컨트롤
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            camera.position.z = 5;
+
+            // 키보드 이벤트 리스너 추가
+            document.addEventListener('keydown', function (event) {
+                if (event.key.toLowerCase() === 'd') {
+                    const controls = document.getElementById('controls');
+                    const texturePreview = document.getElementById('texturePreviewContainer');
+
+                    controls.style.display = controls.style.display === 'none' ? 'block' : 'none';
+                    texturePreview.style.display = texturePreview.style.display === 'none' ? 'block' : 'none';
+                }
+                
+                // 숫자 키 1-8로 모델 선택
+                const keyNum = parseInt(event.key);
+                if (keyNum >= 1 && keyNum <= 8) {
+                    loadModel(modelPaths[keyNum - 1]);
+                }
+            });
+
+            // 모든 모델 프리로딩
+            preloadAllModels();
+
+            animate();
+        }
+
+        // 모든 모델 프리로딩 함수
+        function preloadAllModels() {
+            const loadingScreen = document.getElementById('loadingScreen');
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+
+            loadingScreen.style.display = 'flex';
+
+            let loadedCount = 0;
+            const totalModels = modelPaths.length;
+
+            modelPaths.forEach((path) => {
+                const loader = new THREE.OBJLoader();
+
+                loader.load(
+                    path,
+                    (obj) => {
+                        modelCache[path] = obj;
+                        loadedCount++;
+
+                        // 전체 진행률 계산
+                        const totalProgress = (loadedCount / totalModels) * 100;
+                        progressBar.style.width = totalProgress + '%';
+                        progressText.textContent = Math.round(totalProgress) + '%';
+
+                        // 모든 모델 로딩 완료
+                        if (loadedCount === totalModels) {
+                            loadingScreen.style.display = 'none';
+                            // 첫 번째 모델 표시
+                            loadModel(modelPaths[0]);
+                        }
+                    },
+                    // 프로그레스 콜백
+                    (xhr) => {
+                        // 개별 모델 로딩 진행률은 무시
+                    },
+                    // 에러 콜백
+                    (error) => {
+                        console.error('모델 로딩 중 에러 발생:', error);
+                        loadedCount++;
+                        if (loadedCount === totalModels) {
+                            loadingScreen.style.display = 'none';
+                        }
+                    }
+                );
+            });
+        }
+
+        // loadModel 함수 수정
+        function loadModel(path) {
+            if (currentModel) scene.remove(currentModel);
+
+            if (modelCache[path]) {
+                const obj = modelCache[path].clone();
+                currentModel = obj;
+
+                // UV 좌표 조정 및 모델 설정 코드는 그대로 유지
+                obj.traverse((child) => {
+                    if (child instanceof THREE.Mesh && child.geometry) {
+                        const uvs = child.geometry.attributes.uv;
+                        if (uvs) {
+                            for (let i = 0; i < uvs.array.length; i++) {
+                                // UV 좌표��� 0~1 사이로 표준화
+                                uvs.array[i] = Math.max(0, Math.min(1, uvs.array[i]));
+                            }
+                            uvs.needsUpdate = true;
+                        }
+                    }
+                });
+
+                // 나머지 모델 설정 코드...
+                const boundingBox = new THREE.Box3().setFromObject(obj);
+                const size = new THREE.Vector3();
+                boundingBox.getSize(size);
+
+                const maxDimension = Math.max(size.x, size.y, size.z);
+                const targetSize = 3;
+                const scale = targetSize / maxDimension;
+
+                obj.scale.set(scale, scale, scale);
+
+                const center = new THREE.Vector3();
+                boundingBox.getCenter(center);
+                obj.position.sub(center.multiplyScalar(scale));
+
+                obj.userData.dimensions = {
+                    width: size.x,
+                    height: size.y,
+                    depth: size.z
+                };
+
+                scene.add(currentModel);
+
+                // 현재 텍스처가 있다면 새 모델에 적용
+                const previewImg = document.getElementById('texturePreview');
+                if (previewImg.src && previewImg.src !== window.location.href) {
+                    applyTexture(false);
+                }
+            }
+        }
+
+        // 텍스처 로드 처리
+        document.getElementById('textureInput').addEventListener('change', handleTextureUpload);
+
+        function handleTextureUpload(event) {
+            const file = event.target.files[0];
+            const reader = new FileReader();
+
+            reader.onload = function (e) {
+                const img = new Image();
+                img.onload = function () {
+                    const canvas = document.getElementById('cropCanvas');
+                    const maxWidth = 450;
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > maxWidth) {
+                        const ratio = maxWidth / width;
+                        width = maxWidth;
+                        height = height * ratio;
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    // 원본 이미지 참조 저장
+                    canvas.originalImage = img;
+
+                    // 초기 크롭 영역 설정 (중앙 50%)
+                    cropStartX = width * 0.25;
+                    cropStartY = height * 0.25;
+                    cropEndX = width * 0.75;
+                    cropEndY = height * 0.75;
+
+                    // 크롭 영역 표시
+                    drawCropArea();
+
+                    // 이미지 에디터 표시
+                    document.getElementById('imageEditor').style.display = 'block';
+                    
+                    // 크롭 리스너 설정
+                    setupCropListeners();
+
+                    // 초기 크롭 상태 즉시 적용
+                    applyTexture(false);
+                }
+                img.src = e.target.result;
+            }
+            reader.readAsDataURL(file);
+        }
+
+        // 크롭 영역 그리기 함수 추가
+        function drawCropArea() {
+            const canvas = document.getElementById('cropCanvas');
+            const ctx = canvas.getContext('2d');
+
+            // 캔버스 초기화 및 이미지 다시 그리기
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(canvas.originalImage, 0, 0, canvas.width, canvas.height);
+
+            // 크롭 영역 외부를 어둡게 처리
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+
+            // 크롭 영역 외부 4개의 직사각형 그리기
+            ctx.fillRect(0, 0, canvas.width, Math.min(cropStartY, cropEndY)); // 상단
+            ctx.fillRect(0, Math.max(cropStartY, cropEndY), canvas.width, canvas.height - Math.max(cropStartY, cropEndY)); // 하단
+            ctx.fillRect(0, Math.min(cropStartY, cropEndY), Math.min(cropStartX, cropEndX), Math.abs(cropEndY - cropStartY)); // 좌측
+            ctx.fillRect(Math.max(cropStartX, cropEndX), Math.min(cropStartY, cropEndY),
+                canvas.width - Math.max(cropStartX, cropEndX), Math.abs(cropEndY - cropStartY)); // 우측
+
+            // 크롭 영역 테두리
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(
+                Math.min(cropStartX, cropEndX),
+                Math.min(cropStartY, cropEndY),
+                Math.abs(cropEndX - cropStartX),
+                Math.abs(cropEndY - cropStartY)
+            );
+
+            // 크롭 영역 가이드라
+            const cropX = Math.min(cropStartX, cropEndX);
+            const cropY = Math.min(cropStartY, cropEndY);
+            const cropWidth = Math.abs(cropEndX - cropStartX);
+            const cropHeight = Math.abs(cropEndY - cropStartY);
+
+            // 3x3 그리드 가이드라인
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+            ctx.lineWidth = 1;
+
+            // 수직 가이드라인
+            for (let i = 1; i < 3; i++) {
+                ctx.beginPath();
+                ctx.moveTo(cropX + (cropWidth * i / 3), cropY);
+                ctx.lineTo(cropX + (cropWidth * i / 3), cropY + cropHeight);
+                ctx.stroke();
+            }
+
+            // 수평 가이드라인
+            for (let i = 1; i < 3; i++) {
+                ctx.beginPath();
+                ctx.moveTo(cropX, cropY + (cropHeight * i / 3));
+                ctx.lineTo(cropX + cropWidth, cropY + (cropHeight * i / 3));
+                ctx.stroke();
+            }
+
+            // 코너 핸들 그리기
+            drawHandle(cropStartX, cropStartY);
+            drawHandle(cropEndX, cropStartY);
+            drawHandle(cropStartX, cropEndY);
+            drawHandle(cropEndX, cropEndY);
+        }
+
+        // 핸들 그리기 함수
+        function drawHandle(x, y) {
+            const canvas = document.getElementById('cropCanvas');
+            const ctx = canvas.getContext('2d');
+            const handleSize = 8;
+
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(x - handleSize / 2, y - handleSize / 2, handleSize, handleSize);
+            ctx.strokeStyle = '#000000';
+            ctx.strokeRect(x - handleSize / 2, y - handleSize / 2, handleSize, handleSize);
+        }
+
+        function setupCropListeners() {
+            const canvas = document.getElementById('cropCanvas');
+            let isDragging = false;
+            let dragHandle = null;
+            let lastX, lastY;
+            const handleSize = 8;
+
+            // Canvas의 스케일 계산 함수 추가
+            function getCanvasScale() {
+                const rect = canvas.getBoundingClientRect();
+                return {
+                    x: canvas.width / rect.width,
+                    y: canvas.height / rect.height
+                };
+            }
+
+            // 마우스 좌표를 Canvas 표로 변환하는 함수
+            function getCanvasCoordinates(clientX, clientY) {
+                const rect = canvas.getBoundingClientRect();
+                const scale = getCanvasScale();
+                return {
+                    x: (clientX - rect.left) * scale.x,
+                    y: (clientY - rect.top) * scale.y
+                };
+            }
+
+            function isOverHandle(clientX, clientY, handleX, handleY) {
+                const coords = getCanvasCoordinates(clientX, clientY);
+                return Math.abs(coords.x - handleX) <= handleSize * getCanvasScale().x &&
+                    Math.abs(coords.y - handleY) <= handleSize * getCanvasScale().y;
+            }
+
+            function getHandle(clientX, clientY) {
+                if (isOverHandle(clientX, clientY, cropStartX, cropStartY)) return 'topLeft';
+                if (isOverHandle(clientX, clientY, cropEndX, cropStartY)) return 'topRight';
+                if (isOverHandle(clientX, clientY, cropStartX, cropEndY)) return 'bottomLeft';
+                if (isOverHandle(clientX, clientY, cropEndX, cropEndY)) return 'bottomRight';
+                return null;
+            }
+
+            function startCrop(e) {
+                const coords = getCanvasCoordinates(e.clientX, e.clientY);
+                dragHandle = getHandle(e.clientX, e.clientY);
+
+                if (dragHandle) {
+                    isDragging = true;
+                    lastX = coords.x;
+                    lastY = coords.y;
+                } else if (coords.x >= Math.min(cropStartX, cropEndX) &&
+                    coords.x <= Math.max(cropStartX, cropEndX) &&
+                    coords.y >= Math.min(cropStartY, cropEndY) &&
+                    coords.y <= Math.max(cropStartY, cropEndY)) {
+                    isDragging = true;
+                    dragHandle = 'move';
+                    lastX = coords.x;
+                    lastY = coords.y;
+                }
+            }
+
+            function updateCrop(e) {
+                const coords = getCanvasCoordinates(e.clientX, e.clientY);
+                const x = Math.max(0, Math.min(canvas.width, coords.x));
+                const y = Math.max(0, Math.min(canvas.height, coords.y));
+
+                // 마우스 커서 스타일 업데이트
+                const handle = getHandle(e.clientX, e.clientY);
+                if (handle) {
+                    switch (handle) {
+                        case 'topLeft':
+                        case 'bottomRight':
+                            canvas.style.cursor = 'nw-resize';
+                            break;
+                        case 'topRight':
+                        case 'bottomLeft':
+                            canvas.style.cursor = 'ne-resize';
+                            break;
+                    }
+                } else if (x >= Math.min(cropStartX, cropEndX) &&
+                    x <= Math.max(cropStartX, cropEndX) &&
+                    y >= Math.min(cropStartY, cropEndY) &&
+                    y <= Math.max(cropStartY, cropEndY)) {
+                    canvas.style.cursor = 'move';
+                } else {
+                    canvas.style.cursor = 'default';
+                }
+
+                if (!isDragging) return;
+
+                const dx = x - lastX;
+                const dy = y - lastY;
+
+                if (dragHandle === 'move') {
+                    cropStartX = Math.max(0, Math.min(canvas.width, cropStartX + dx));
+                    cropStartY = Math.max(0, Math.min(canvas.height, cropStartY + dy));
+                    cropEndX = Math.max(0, Math.min(canvas.width, cropEndX + dx));
+                    cropEndY = Math.max(0, Math.min(canvas.height, cropEndY + dy));
+                } else {
+                    switch (dragHandle) {
+                        case 'topLeft':
+                            cropStartX = x;
+                            cropStartY = y;
+                            break;
+                        case 'topRight':
+                            cropEndX = x;
+                            cropStartY = y;
+                            break;
+                        case 'bottomLeft':
+                            cropStartX = x;
+                            cropEndY = y;
+                            break;
+                        case 'bottomRight':
+                            cropEndX = x;
+                            cropEndY = y;
+                            break;
+                    }
+
+                    // 최소 크기 제한
+                    const minSize = 20 * getCanvasScale().x;
+                    if (Math.abs(cropEndX - cropStartX) < minSize || Math.abs(cropEndY - cropStartY) < minSize) {
+                        return;
+                    }
+                }
+
+                lastX = x;
+                lastY = y;
+                drawCropArea();
+                applyTexture(false);
+            }
+
+            function endCrop() {
+                isDragging = false;
+                dragHandle = null;
+            }
+
+            canvas.addEventListener('mousedown', startCrop);
+            canvas.addEventListener('mousemove', updateCrop);
+            canvas.addEventListener('mouseup', endCrop);
+            canvas.addEventListener('mouseleave', endCrop);
+        }
+
+        // 텍스처 적용
+        function applyTexture(closeEditor = true) {
+            const canvas = document.getElementById('cropCanvas');
+            const croppedCanvas = document.createElement('canvas');
+            const ctx = croppedCanvas.getContext('2d');
+
+            // 크롭 영역의 좌표 계산
+            const startX = Math.min(cropStartX, cropEndX);
+            const startY = Math.min(cropStartY, cropEndY);
+            const width = Math.abs(cropEndX - cropStartX);
+            const height = Math.abs(cropEndY - cropStartY);
+
+            if (width <= 0 || height <= 0) {
+                console.error('유효하지 않은 크롭 영역');
+                return;
+            }
+
+            croppedCanvas.width = width;
+            croppedCanvas.height = height;
+            ctx.clearRect(0, 0, width, height);
+
+            // 크롭된 이미지 그리기
+            ctx.drawImage(
+                canvas.originalImage,
+                startX * (canvas.originalImage.width / canvas.width),
+                startY * (canvas.originalImage.height / canvas.height),
+                width * (canvas.originalImage.width / canvas.width),
+                height * (canvas.originalImage.height / canvas.height),
+                0,
+                0,
+                width,
+                height
+            );
+
+            // 크롭된 이미지 미리보기 표시
+            const previewImg = document.getElementById('texturePreview');
+            previewImg.src = croppedCanvas.toDataURL('image/png');
+
+            // 텍스처 생성 및 적용
+            const texture = new THREE.Texture(croppedCanvas);
+            texture.needsUpdate = true;
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.ClampToEdgeWrapping;
+
+            if (currentModel) {
+                // 첫 번째 메시만 찾아서 텍스처 적용
+                let firstMesh = null;
+                currentModel.traverse((child) => {
+                    if (!firstMesh && child instanceof THREE.Mesh) {
+                        firstMesh = child;
+                    }
+                });
+
+                if (firstMesh) {
+                    // 모든 메시에 동일한 머티리얼 적용
+                    const material = new THREE.MeshPhongMaterial({
+                        map: texture,
+                        transparent: true,
+                        side: THREE.DoubleSide
+                    });
+
+                    currentModel.traverse((child) => {
+                        if (child instanceof THREE.Mesh) {
+                            child.material = material;
+                        }
+                    });
+                }
+            }
+
+            if (closeEditor) {
+                document.getElementById('imageEditor').style.display = 'none';
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // 초기화
+        init();
+
+        // 윈도우 리사이즈 처리
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // postMessage 리스너 추가
+        window.addEventListener('message', function(event) {
+            // 보안을 위한 출처 검증
+            // if (event.origin !== "허용할 도메인") return;
+            
+            const data = event.data;
+            
+            // 모델 로드 명령 처리
+            if (data.type === 'loadModel' && data.path) {
+                loadModel(data.path);
+            }
+            
+            // 텍스처 URL 처리
+            if (data.type === 'loadTexture' && data.url) {
+                loadTextureFromURL(data.url);
+            }
+        });
+
+        // URL로부터 텍스처 로드하는 새로운 함수
+        function loadTextureFromURL(url) {
+            const img = new Image();
+            img.crossOrigin = "anonymous";  // CORS 처리
+            
+            img.onload = function() {
+                const canvas = document.getElementById('cropCanvas');
+                const maxWidth = 450;
+                let width = img.width;
+                let height = img.height;
+
+                if (width > maxWidth) {
+                    const ratio = maxWidth / width;
+                    width = maxWidth;
+                    height = height * ratio;
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+
+                canvas.originalImage = img;
+
+                // 초기 크롭 영역 설정 (중앙 50%)
+                cropStartX = width * 0.25;
+                cropStartY = height * 0.25;
+                cropEndX = width * 0.75;
+                cropEndY = height * 0.75;
+
+                drawCropArea();
+                document.getElementById('imageEditor').style.display = 'block';
+                setupCropListeners();
+                applyTexture(false);
+            };
+
+            img.onerror = function() {
+                console.error('텍스처 이미지 로드 실패:', url);
+            };
+
+            img.src = url;
+        }
+    </script>
+</body>
+
+</html>
