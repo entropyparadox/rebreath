@@ -27,7 +27,7 @@
         #imageEditor {
             display: none;
             position: fixed;
-            top: 20px;
+            top: 60px;
             right: 20px;
             background: white;
             padding: 20px;
@@ -39,7 +39,7 @@
         .button {
             margin: 5px;
             padding: 8px 15px;
-            background: #4CAF50;
+            background: #aaa;
             color: white;
             border: none;
             border-radius: 4px;
@@ -119,6 +119,14 @@
             width: 100%;
             text-align: center;
         }
+
+        /* 텍스처 편집 버튼 스타일 추가 */
+        #textureEditButton {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+        }
     </style>
 </head>
 
@@ -137,6 +145,8 @@
         <input type="file" id="textureInput" accept="image/*" style="display: none;">
         <button class="button" onclick="document.getElementById('textureInput').click()">텍스처 업로드</button>
     </div>
+
+    <button id="textureEditButton" class="button" onclick="toggleImageEditor()">텍스처 편집</button>
 
     <div id="container"></div>
 
@@ -528,7 +538,7 @@
                 const x = Math.max(0, Math.min(canvas.width, coords.x));
                 const y = Math.max(0, Math.min(canvas.height, coords.y));
 
-                // 마우��� 커서 스타일 업데이트
+                // 마우스 커서 스타일 업데이트
                 const handle = getHandle(e.clientX, e.clientY);
                 if (handle) {
                     switch (handle) {
@@ -753,6 +763,18 @@
             };
 
             img.src = url;
+        }
+
+        // toggleImageEditor 함수 추가
+        function toggleImageEditor() {
+            const editor = document.getElementById('imageEditor');
+            const isVisible = editor.style.display === 'block';
+            editor.style.display = isVisible ? 'none' : 'block';
+        }
+
+        // closeImageEditor 함수 수정
+        function closeImageEditor() {
+            document.getElementById('imageEditor').style.display = 'none';
         }
     </script>
 </body>
