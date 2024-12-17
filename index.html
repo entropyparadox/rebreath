@@ -232,6 +232,20 @@
                 }
             });
 
+            // URL 쿼리 스트링에서 텍스처 URL 확인
+            const urlParams = new URLSearchParams(window.location.search);
+            const textureUrl = urlParams.get('texture');
+            
+            if (textureUrl) {
+                try {
+                    // URL 디코딩 후 텍스처 로드
+                    const decodedUrl = decodeURIComponent(textureUrl);
+                    loadTextureFromURL(decodedUrl);
+                } catch (e) {
+                    console.error('텍스처 URL 파싱 에러:', e);
+                }
+            }
+
             // 모든 모델 프리로딩
             preloadAllModels();
 
@@ -753,7 +767,7 @@
                 cropEndY = height * 0.75;
 
                 drawCropArea();
-                document.getElementById('imageEditor').style.display = 'block';
+                // document.getElementById('imageEditor').style.display = 'block';
                 setupCropListeners();
                 applyTexture(false);
             };
