@@ -171,6 +171,10 @@
         </div>
     </div>
 
+    <div id="initImageContainer" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;">
+        <img src="init.png" alt="시작 이미지" style="max-width: 80%; height: auto;">
+    </div>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
@@ -220,7 +224,6 @@
                 if (event.key.toLowerCase() === 'd') {
                     const controls = document.getElementById('controls');
                     const texturePreview = document.getElementById('texturePreviewContainer');
-
                     controls.style.display = controls.style.display === 'none' ? 'block' : 'none';
                     texturePreview.style.display = texturePreview.style.display === 'none' ? 'block' : 'none';
                 }
@@ -228,25 +231,12 @@
                 // 숫자 키 1-8로 모델 선택
                 const keyNum = parseInt(event.key);
                 if (keyNum >= 1 && keyNum <= 8) {
+                    document.getElementById('initImageContainer').style.display = 'none';
                     loadModel(modelPaths[keyNum - 1]);
                 }
             });
 
-            // URL 쿼리 스트링에서 텍스처 URL 확인
-            const urlParams = new URLSearchParams(window.location.search);
-            const textureUrl = urlParams.get('texture');
-            
-            if (textureUrl) {
-                try {
-                    // URL 디코딩 후 텍스처 로드
-                    const decodedUrl = decodeURIComponent(textureUrl);
-                    loadTextureFromURL(decodedUrl);
-                } catch (e) {
-                    console.error('텍스처 URL 파싱 에러:', e);
-                }
-            }
-
-            // 모든 모델 프리로딩
+            // 모든 모델 프리로딩은 백그라운드에서 진행
             preloadAllModels();
 
             animate();
@@ -278,7 +268,6 @@
 
                         if (loadedCount === totalModels) {
                             loadingScreen.style.display = 'none';
-                            loadModel(modelPaths[0]);
                         }
                     },
                     // 프로그레스 콜백
@@ -311,13 +300,16 @@
 
         // loadModel 함수 수정
         function loadModel(path) {
+            // 초기 이미지 숨기기
+            document.getElementById('initImageContainer').style.display = 'none';
+            
             if (currentModel) scene.remove(currentModel);
 
             if (modelCache[path]) {
                 const obj = modelCache[path].clone();
                 currentModel = obj;
 
-                // UV 좌표 조정 및 모델 설정 코드는 그대로 유지
+                // UV 좌표 조정 �� 모델 설정 코드는 그대로 유지
                 obj.traverse((child) => {
                     if (child instanceof THREE.Mesh && child.geometry) {
                         const uvs = child.geometry.attributes.uv;
@@ -718,7 +710,7 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
-        // postMessage 리스너 추가
+        // postMessage 리스너 수정
         window.addEventListener('message', function(event) {
             // 보안을 위한 출처 검증
             // if (event.origin !== "허용할 도메인") return;
@@ -727,16 +719,20 @@
             
             // 모델 로드 명령 처리
             if (data.type === 'loadModel' && data.path) {
+                // 초기 이미지 숨기기
+                document.getElementById('initImageContainer').style.display = 'none';
                 loadModel(data.path);
             }
             
             // 텍스처 URL 처리
             if (data.type === 'loadTexture' && data.url) {
+                // 초기 이미지 숨기기
+                document.getElementById('initImageContainer').style.display = 'none';
                 loadTextureFromURL(data.url);
             }
         });
 
-        // URL로부터 텍스처 로드하는 새로운 함수
+        // URL로부터 텍스처 드하는 새로운 함수
         function loadTextureFromURL(url) {
             const img = new Image();
             img.crossOrigin = "anonymous";  // CORS 처리
