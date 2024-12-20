@@ -133,14 +133,19 @@
 <body>
     <div id="controls">
         <div id="modelButtons">
-            <button class="button" onclick="loadModel('models/p1-bag.obj')">모델 1</button>
-            <button class="button" onclick="loadModel('models/p2-handybag.obj')">모델 2</button>
-            <button class="button" onclick="loadModel('models/p3-pouch-tall.obj')">모델 3</button>
-            <button class="button" onclick="loadModel('models/p4-pouch.obj')">모델 4</button>
-            <button class="button" onclick="loadModel('models/p5-bag-string.obj')">모델 5</button>
-            <button class="button" onclick="loadModel('models/p6-hat.obj')">모델 6</button>
-            <button class="button" onclick="loadModel('models/p7-ecobag.obj')">모델 7</button>
-            <button class="button" onclick="loadModel('models/p8-cap.obj')">모델 8</button>
+            <button class="button" onclick="loadModel('models/1.obj')">모델 1</button>
+            <button class="button" onclick="loadModel('models/2.obj')">모델 2</button>
+            <button class="button" onclick="loadModel('models/3.obj')">모델 3</button>
+            <button class="button" onclick="loadModel('models/4.obj')">모델 4</button>
+            <button class="button" onclick="loadModel('models/5.obj')">모델 5</button>
+            <button class="button" onclick="loadModel('models/6.obj')">모델 6</button>
+            <button class="button" onclick="loadModel('models/7.obj')">모델 7</button>
+            <button class="button" onclick="loadModel('models/8.obj')">모델 8</button>
+            <button class="button" onclick="loadModel('models/9.obj')">모델 9</button>
+            <button class="button" onclick="loadModel('models/10.obj')">모델 10</button>
+            <button class="button" onclick="loadModel('models/11.obj')">모델 11</button>
+            <button class="button" onclick="loadModel('models/12.obj')">모델 12</button>
+            <button class="button" onclick="loadModel('models/13.obj')">모델 13</button>
         </div>
         <input type="file" id="textureInput" accept="image/*" style="display: none;">
         <button class="button" onclick="document.getElementById('textureInput').click()">텍스처 업로드</button>
@@ -224,18 +229,25 @@
 
             // 키보드 이벤트 리스너 추가
             document.addEventListener('keydown', function (event) {
-                if (event.key.toLowerCase() === 'd') {
+                // 'D' 키와 'ㅇ' 키 모두 인식하도록 수정
+                if (event.code === 'KeyD' || event.key === 'ㅇ') {
                     const controls = document.getElementById('controls');
                     const texturePreview = document.getElementById('texturePreviewContainer');
                     controls.style.display = controls.style.display === 'none' ? 'block' : 'none';
                     texturePreview.style.display = texturePreview.style.display === 'none' ? 'block' : 'none';
                 }
                 
-                // 숫자 키 1-8로 모델 선택
-                const keyNum = parseInt(event.key);
-                if (keyNum >= 1 && keyNum <= 8) {
+                // 나머지 숫자키 매핑 코드는 그대로 유지
+                const keyMap = {
+                    '1': 0, '2': 1, '3': 2, '4': 3, '5': 4, 
+                    '6': 5, '7': 6, '8': 7, '9': 8, '0': 9,
+                    '-': 10, '=': 11
+                };
+                
+                const modelIndex = keyMap[event.key];
+                if (modelIndex !== undefined && modelIndex < modelPaths.length) {
                     document.getElementById('initImageContainer').style.display = 'none';
-                    loadModel(modelPaths[keyNum - 1]);
+                    loadModel(modelPaths[modelIndex]);
                 }
             });
 
@@ -315,29 +327,78 @@
 
         // loadModel 함수 수정
         function loadModel(path) {
-            // 초기 이미지 숨기기
             document.getElementById('initImageContainer').style.display = 'none';
             
             if (currentModel) scene.remove(currentModel);
 
             if (modelCache[path]) {
                 const obj = modelCache[path].clone();
-                currentModel = obj;
-
-                // UV 좌표 조정 �� 모델 설정 코드�� 그대로 유지
+                
+                // 메시 정보 로깅
+                console.group('모델 메시 정보:', path);
+                let meshCount = 0;
+                
+                // 전체 UV 범위 계산
+                let globalMinU = Infinity, globalMaxU = -Infinity;
+                let globalMinV = Infinity, globalMaxV = -Infinity;
+                
                 obj.traverse((child) => {
-                    if (child instanceof THREE.Mesh && child.geometry) {
+                    if (child instanceof THREE.Mesh && child.geometry.attributes.uv) {
                         const uvs = child.geometry.attributes.uv;
-                        if (uvs) {
-                            for (let i = 0; i < uvs.array.length; i++) {
-                                // UV 좌표 0~1 사이로 표준화
-                                uvs.array[i] = Math.max(0, Math.min(1, uvs.array[i]));
-                            }
-                            uvs.needsUpdate = true;
+                        for (let i = 0; i < uvs.array.length; i += 2) {
+                            globalMinU = Math.min(globalMinU, uvs.array[i]);
+                            globalMaxU = Math.max(globalMaxU, uvs.array[i]);
+                            globalMinV = Math.min(globalMinV, uvs.array[i + 1]);
+                            globalMaxV = Math.max(globalMaxV, uvs.array[i + 1]);
                         }
                     }
                 });
 
+                console.log('전체 UV 범위:', {
+                    u: [globalMinU, globalMaxU],
+                    v: [globalMinV, globalMaxV]
+                });
+
+                // UV 좌표 정규화
+                obj.traverse((child) => {
+                    if (child instanceof THREE.Mesh && child.geometry.attributes.uv) {
+                        const uvs = child.geometry.attributes.uv;
+                        const uRange = globalMaxU - globalMinU;
+                        const vRange = globalMaxV - globalMinV;
+
+                        for (let i = 0; i < uvs.array.length; i += 2) {
+                            // UV 좌표를 0~1 범위로 정규화
+                            uvs.array[i] = (uvs.array[i] - globalMinU) / uRange;
+                            uvs.array[i + 1] = (uvs.array[i + 1] - globalMinV) / vRange;
+                        }
+                        uvs.needsUpdate = true;
+                    }
+                });
+
+                // 메시 정보 로깅
+                obj.traverse((child) => {
+                    if (child instanceof THREE.Mesh) {
+                        meshCount++;
+                        console.group(`메시 #${meshCount}`);
+                        console.log('이름:', child.name || '이름 없음');
+                        console.log('버텍스 수:', child.geometry.attributes.position.count);
+                        console.log('UV 좌표 여부:', !!child.geometry.attributes.uv);
+                        if (child.geometry.attributes.uv) {
+                            console.log('UV 범위:', getUVRange(child.geometry.attributes.uv));
+                        }
+                        console.log('위치:', child.position);
+                        console.log('회전:', child.rotation);
+                        console.log('스케일:', child.scale);
+                        console.log('머티리얼:', child.material);
+                        console.groupEnd();
+                    }
+                });
+                console.log('총 메시 수:', meshCount);
+                console.groupEnd();
+
+                // 기존 코드 계속...
+                currentModel = obj;
+                
                 // 나머지 모델 설정 코드...
                 const boundingBox = new THREE.Box3().setFromObject(obj);
                 const size = new THREE.Vector3();
@@ -367,6 +428,27 @@
                     applyTexture(false);
                 }
             }
+        }
+
+        // UV 좌표의 범위를 계산하는 헬퍼 함수
+        function getUVRange(uvAttribute) {
+            let minU = Infinity, maxU = -Infinity;
+            let minV = Infinity, maxV = -Infinity;
+            
+            for (let i = 0; i < uvAttribute.array.length; i += 2) {
+                const u = uvAttribute.array[i];
+                const v = uvAttribute.array[i + 1];
+                
+                minU = Math.min(minU, u);
+                maxU = Math.max(maxU, u);
+                minV = Math.min(minV, v);
+                maxV = Math.max(maxV, v);
+            }
+            
+            return {
+                u: [minU, maxU],
+                v: [minV, maxV]
+            };
         }
 
         // 텍스처 로드 처리
@@ -676,9 +758,10 @@
             // 텍스처 생성 및 적용
             const texture = new THREE.Texture(croppedCanvas);
             texture.needsUpdate = true;
-            texture.wrapS = THREE.RepeatWrapping;
-            texture.wrapT = THREE.RepeatWrapping;
-            texture.repeat.set(2, 1);
+            texture.wrapS = THREE.ClampToEdgeWrapping;
+            texture.wrapT = THREE.ClampToEdgeWrapping;
+            texture.repeat.set(1, 1);
+            texture.offset.set(0, 0);
 
             if (currentModel) {
                 // 첫 번째 메시만 찾아서 텍스처 적용
