@@ -324,7 +324,7 @@
                 const obj = modelCache[path].clone();
                 currentModel = obj;
 
-                // UV 좌표 조정 �� 모델 설정 코드는 그대로 유지
+                // UV 좌표 조정 �� 모델 설정 코드�� 그대로 유지
                 obj.traverse((child) => {
                     if (child instanceof THREE.Mesh && child.geometry) {
                         const uvs = child.geometry.attributes.uv;
@@ -677,7 +677,8 @@
             const texture = new THREE.Texture(croppedCanvas);
             texture.needsUpdate = true;
             texture.wrapS = THREE.RepeatWrapping;
-            texture.wrapT = THREE.ClampToEdgeWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(2, 1);
 
             if (currentModel) {
                 // 첫 번째 메시만 찾아서 텍스처 적용
