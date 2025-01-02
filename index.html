@@ -130,6 +130,25 @@
             display: none;
             /* 버튼 숨기기 */
         }
+
+        #guideBox {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: none;
+            z-index: 1000;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+
+        #guideBox img {
+            width: 340px;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translate(-50%, -20px); }
+            to { opacity: 1; transform: translate(-50%, 0); }
+        }
     </style>
 </head>
 
@@ -182,6 +201,10 @@
     <div id="initImageContainer"
         style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;">
         <img src="init.png" alt="시작 이미지" style="max-width: 80%; height: auto;">
+    </div>
+
+    <div id="guideBox">
+        <img src="guide.png" alt="가이드 이미지">
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -332,6 +355,15 @@
         // loadModel 함수 수정
         function loadModel(path) {
             document.getElementById('initImageContainer').style.display = 'none';
+            
+            // 가이드 박스 표시
+            const guideBox = document.getElementById('guideBox');
+            guideBox.style.display = 'block';
+            
+            // 3초 후에 가이드 박스 숨기기
+            setTimeout(() => {
+                guideBox.style.display = 'none';
+            }, 3000);
 
             if (currentModel) scene.remove(currentModel);
 
