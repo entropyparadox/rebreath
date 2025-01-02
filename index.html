@@ -834,9 +834,13 @@
                 document.getElementById('initImageContainer').style.display = 'none';
                 loadTextureFromURL(data.url);
             }
+
+            if (data.type === 'showInit') {
+                document.getElementById('initImageContainer').style.display = 'block';
+            }
         });
 
-        // URL로부터 텍스처 드하는 새로운 함수
+        // URL로부터 텍스처 로드하는 새로운 함수
         function loadTextureFromURL(url) {
             const img = new Image();
             img.crossOrigin = "anonymous";  // CORS 처리
